@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="E-Auto-Crashkurs für Stuttgart: AC/DC, Ladepreise, Lade-Routine, Ionity-Rechner und Tipps.">
+<style>
+/* Basis-Reset für den Betrieb außerhalb von Claude */
+html { -webkit-text-size-adjust: 100%; }
+:root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+body { margin: 0; }
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+</style>
+<title>Laden für Carina</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: a click-through course in one narrow column. Sticky chapter bar on top, one chapter per view, Zurück/Weiter at the bottom. AC is always teal, DC always amber. */
+:root {
+  --bg: #EDF1EE;
+  --surface: #FAFCFA;
+  --ink: #15201B;
+  --muted: #55645D;
+  --line: #D2DBD5;
+  --ac: #0B7480;
+  --ac-soft: #D6EBEB;
+  --dc: #A6520E;
+  --dc-soft: #F5E3D1;
+  --good: #2B7745;
+  --on-dc: #FFFFFF;
+  --font-display: "Bricolage Grotesque", "Arial Narrow", system-ui, sans-serif;
+  --font-body: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0F1513; --surface: #161E1B; --ink: #E3EAE6; --muted: #98A69F; --line: #2A3631;
+    --ac: #52C2CB; --ac-soft: #16303380; --dc: #EE9B50; --dc-soft: #3B271780; --good: #6FC48D; --on-dc: #1A1209;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0F1513; --surface: #161E1B; --ink: #E3EAE6; --muted: #98A69F; --line: #2A3631;
+  --ac: #52C2CB; --ac-soft: #16303380; --dc: #EE9B50; --dc-soft: #3B271780; --good: #6FC48D; --on-dc: #1A1209;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16.5px;
+  line-height: 1.55;
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); }
+
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; line-height: 1.1; }
+h1 { font-size: clamp(2.6rem, 9vw, 4.2rem); font-weight: 800; letter-spacing: -0.02em; }
+h2 { font-size: clamp(1.8rem, 6vw, 2.5rem); font-weight: 800; letter-spacing: -0.01em; }
+h3 { font-size: 1.2rem; font-weight: 600; }
+p { margin: 0; }
+a { color: var(--ac); text-underline-offset: 2px; }
+a:focus-visible, button:focus-visible, input:focus-visible, label:focus-within { outline: 2px solid var(--dc); outline-offset: 3px; border-radius: 4px; }
+.eyebrow {
+  font-family: var(--font-data); font-size: 0.75rem; font-weight: 600;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
+}
+.num { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+
+/* Chapter bar */
+.topbar {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  background: var(--surface); border-bottom: 1px solid var(--line);
+}
+.topbar-inner {
+  max-width: 760px; margin: 0 auto;
+  padding-block: 10px 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 8px;
+}
+.topbar-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.brand { font-family: var(--font-display); font-weight: 800; font-size: 1.05rem; color: var(--ink); text-decoration: none; }
+.step-count { font-family: var(--font-data); font-size: 0.78rem; color: var(--muted); white-space: nowrap; }
+.chapters { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; padding-bottom: 8px; }
+.chapters::-webkit-scrollbar { display: none; }
+.chapters a {
+  flex: none; font-size: 0.85rem; text-decoration: none; color: var(--muted);
+  padding: 4px 10px; border-radius: 999px; border: 1px solid transparent; white-space: nowrap;
+}
+.chapters a .n { font-family: var(--font-data); font-size: 0.75rem; margin-right: 4px; }
+.chapters a:hover { color: var(--ink); }
+.chapters a.done { color: var(--ink); }
+.chapters a[aria-current="page"] { color: var(--dc); border-color: var(--dc); background: var(--dc-soft); font-weight: 700; }
+.meter { height: 3px; background: var(--line); }
+.meter i { display: block; height: 100%; width: var(--p, 0%); background: var(--dc); transition: width 0.3s ease; }
+
+/* Views */
+.page {
+  max-width: 760px; margin: 0 auto;
+  padding-block: 28px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.view { display: grid; gap: 22px; }
+.view-head { display: grid; gap: 8px; max-width: 62ch; }
+.view-head p { color: var(--muted); font-size: 1.05rem; }
+
+.pager { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; margin-top: 16px; padding-top: 20px; border-top: 1px solid var(--line); }
+.pager a {
+  display: grid; gap: 2px; text-decoration: none; border-radius: var(--radius); padding: 12px 16px; min-width: 0;
+}
+.pager .prev { border: 1px solid var(--line); color: var(--ink); background: var(--surface); }
+.pager .next { background: var(--dc); color: var(--on-dc); text-align: right; grid-column: 2; }
+.pager small { font-size: 0.78rem; opacity: 0.8; }
+.pager b { font-family: var(--font-display); font-size: 1.05rem; }
+.pager .prev:hover { border-color: var(--ink); }
+.pager .next:hover { filter: brightness(1.08); }
+
+/* Start view */
+.lede { font-size: 1.12rem; max-width: 58ch; }
+.lede .sig { color: var(--muted); font-style: italic; }
+.soc { margin: 0; display: grid; gap: 10px; }
+.battery { display: flex; align-items: center; gap: 4px; }
+.cells {
+  flex: 1; display: grid; grid-template-columns: 20fr 60fr 20fr; height: 54px;
+  border: 2px solid var(--ink); border-radius: 9px; padding: 4px; gap: 4px;
+}
+.cells > div { border-radius: 4px; display: flex; align-items: center; padding: 0 8px; font-size: 0.78rem; font-weight: 700; min-width: 0; overflow: hidden; white-space: nowrap; }
+.zone-low { background: repeating-linear-gradient(135deg, var(--line) 0 6px, transparent 6px 12px); color: var(--muted); }
+.zone-sweet { background: var(--dc); color: var(--on-dc); justify-content: center; }
+.zone-high { background: var(--dc-soft); color: var(--dc); }
+.nub { width: 7px; height: 22px; background: var(--ink); border-radius: 0 3px 3px 0; }
+.soc-scale { position: relative; height: 18px; margin-right: 11px; font-family: var(--font-data); font-size: 0.75rem; color: var(--muted); }
+.soc-scale span { position: absolute; transform: translateX(-50%); }
+.soc-scale span:first-child { transform: none; }
+.soc-scale span:last-child { transform: translateX(-100%); }
+.soc figcaption { color: var(--muted); font-size: 0.95rem; max-width: 62ch; }
+
+.rules { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.rules li { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; display: grid; gap: 2px; }
+.rules b { font-family: var(--font-display); font-size: 1.05rem; }
+.rules span { color: var(--muted); font-size: 0.93rem; }
+
+.toc { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.toc a {
+  display: grid; grid-template-columns: 2.4rem minmax(0, 1fr) auto; align-items: center; gap: 12px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 12px 14px; text-decoration: none; color: var(--ink);
+}
+.toc a:hover { border-color: var(--dc); }
+.toc .n { font-family: var(--font-data); font-weight: 600; color: var(--dc); font-size: 1.1rem; }
+.toc .t { display: grid; gap: 1px; min-width: 0; }
+.toc .t b { font-family: var(--font-display); font-size: 1.08rem; }
+.toc .t span { color: var(--muted); font-size: 0.9rem; }
+.toc .arrow { color: var(--muted); font-size: 1.2rem; }
+.start-btn {
+  justify-self: start; display: inline-block; background: var(--dc); color: var(--on-dc); text-decoration: none;
+  font-family: var(--font-display); font-weight: 800; font-size: 1.15rem; padding: 12px 22px; border-radius: var(--radius);
+}
+.start-btn:hover { filter: brightness(1.08); }
+
+/* AC vs DC */
+.versus { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.mode { border-radius: var(--radius); padding: 18px; display: grid; gap: 10px; align-content: start; }
+.mode.ac { background: var(--ac-soft); }
+.mode.dc { background: var(--dc-soft); }
+.mode .badge { font-family: var(--font-data); font-weight: 600; font-size: 0.8rem; letter-spacing: 0.06em; }
+.mode.ac .badge, .mode.ac h3 { color: var(--ac); }
+.mode.dc .badge, .mode.dc h3 { color: var(--dc); }
+.mode ul { margin: 0; padding-left: 1.1em; display: grid; gap: 4px; }
+.callout { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; font-size: 0.98rem; }
+.callout b { font-family: var(--font-display); }
+
+/* Provider cards */
+.providers { display: grid; gap: 12px; }
+.prov { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; display: grid; gap: 14px; }
+.prov-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 12px; }
+.tag { font-size: 0.8rem; font-weight: 700; color: var(--good); border: 1px solid currentColor; border-radius: 999px; padding: 1px 10px; }
+.prices { display: flex; flex-wrap: wrap; gap: 8px; }
+.price { border-radius: 8px; padding: 8px 12px; display: grid; gap: 0; min-width: 7.5rem; }
+.price.ac { background: var(--ac-soft); }
+.price.dc { background: var(--dc-soft); }
+.price.mix { background: var(--bg); border: 1px solid var(--line); }
+.price .kind { font-family: var(--font-data); font-size: 0.72rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+.price.ac .kind { color: var(--ac); }
+.price.dc .kind { color: var(--dc); }
+.price.mix .kind { color: var(--muted); }
+.price .val { font-family: var(--font-data); font-variant-numeric: tabular-nums; font-size: 1.45rem; font-weight: 600; line-height: 1.2; }
+.price .val small { font-size: 0.72rem; font-weight: 500; color: var(--muted); margin-left: 3px; }
+.price .sub { font-size: 0.8rem; color: var(--muted); }
+.facts { margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 14px; font-size: 0.95rem; }
+.facts dt { color: var(--muted); }
+.facts dd { margin: 0; }
+
+/* Chart */
+.chart { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; display: grid; gap: 14px; }
+.chart-head { display: grid; gap: 6px; }
+.chart-head p { color: var(--muted); font-size: 0.95rem; }
+.chart-rows { display: grid; gap: 12px; }
+.row { display: grid; gap: 4px; }
+.row-top { display: flex; justify-content: space-between; gap: 12px; font-size: 0.93rem; }
+.row-top .num { font-weight: 600; white-space: nowrap; }
+.row-top .fee { color: var(--muted); font-weight: 500; font-size: 0.8rem; }
+.track {
+  position: relative; height: 14px; border-radius: 3px;
+  background:
+    linear-gradient(to right, var(--line) 1px, transparent 1px) 0 0 / 25% 100%,
+    var(--bg);
+}
+.bar { position: absolute; top: 0; bottom: 0; left: 0; width: var(--w); background: var(--muted); border-radius: 3px; }
+.bar.best { background: var(--dc); }
+.bar.abo { background: repeating-linear-gradient(135deg, var(--ac) 0 5px, color-mix(in srgb, var(--ac) 65%, transparent) 5px 10px); }
+.bar.range { left: var(--l); background: linear-gradient(to right, color-mix(in srgb, var(--muted) 35%, transparent), var(--muted)); }
+.axis { position: relative; height: 16px; font-family: var(--font-data); font-size: 0.72rem; color: var(--muted); }
+.axis span { position: absolute; transform: translateX(-50%); }
+.axis span:first-child { transform: none; }
+.axis span:last-child { transform: translateX(-100%); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 0.85rem; color: var(--muted); }
+.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -1px; margin-right: 6px; }
+
+/* Routine */
+.routine { list-style: none; margin: 0; padding: 0; display: grid; border-top: 1px solid var(--line); }
+.routine li { display: grid; grid-template-columns: 11rem minmax(0, 1fr); gap: 6px 20px; padding: 16px 0; border-bottom: 1px solid var(--line); }
+.routine .when { font-family: var(--font-display); font-weight: 600; font-size: 1.05rem; }
+.pill { display: inline-block; font-family: var(--font-data); font-size: 0.72rem; font-weight: 600; border-radius: 4px; padding: 1px 6px; vertical-align: 1px; }
+.pill.ac { background: var(--ac-soft); color: var(--ac); }
+.pill.dc { background: var(--dc-soft); color: var(--dc); }
+
+/* Calculator */
+.calc { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; display: grid; gap: 18px; }
+.field { display: grid; gap: 6px; }
+.field-top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.field label { font-weight: 700; }
+.field output { font-family: var(--font-data); font-weight: 600; font-size: 1.1rem; white-space: nowrap; }
+.field .hint { font-size: 0.88rem; color: var(--muted); }
+input[type="range"] { width: 100%; accent-color: var(--dc); }
+.results { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.res { border: 1px solid var(--line); border-radius: 8px; padding: 12px; display: grid; gap: 2px; }
+.res .name { font-size: 0.85rem; font-weight: 700; }
+.res .detail { font-size: 0.78rem; color: var(--muted); }
+.res .total { font-family: var(--font-data); font-variant-numeric: tabular-nums; font-size: 1.35rem; font-weight: 600; }
+.res.win { border-color: var(--good); background: color-mix(in srgb, var(--good) 10%, var(--surface)); }
+.res.win .name::after { content: " · günstigste"; color: var(--good); }
+.verdict { font-size: 1.02rem; padding-left: 12px; border-left: 3px solid var(--good); }
+
+/* Tips */
+.tips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.tip { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; display: grid; gap: 6px; align-content: start; }
+.tip h3 { font-size: 1.05rem; }
+.tip p { font-size: 0.95rem; }
+
+/* Checklist */
+.checklist { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.checklist label { display: flex; gap: 12px; align-items: flex-start; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; cursor: pointer; }
+.checklist input { width: 20px; height: 20px; margin-top: 2px; flex: none; accent-color: var(--good); }
+.checklist input:checked + span { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--muted); }
+.progress { font-weight: 700; color: var(--good); }
+
+/* Sources */
+.sources { display: grid; gap: 10px; font-size: 0.88rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 20px; }
+.sources ul { margin: 0; padding-left: 1.1em; display: grid; gap: 4px; }
+
+@media (max-width: 620px) {
+  .rules, .versus, .tips, .results { grid-template-columns: minmax(0, 1fr); }
+  .routine li { grid-template-columns: minmax(0, 1fr); }
+  .cells > div { font-size: 0.7rem; padding: 0 5px; }
+  .zone-low span, .zone-high span { display: none; }
+  .toc .arrow { display: none; }
+  .toc a { grid-template-columns: 2rem minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="topbar-row">
+      <a class="brand" href="#start">Laden für Carina</a>
+      <span class="step-count" id="step-count">Start</span>
+    </div>
+    <nav class="chapters" id="chapters" aria-label="Kapitel">
+      <a href="#start" data-to="start">Start</a>
+      <a href="#grundlagen" data-to="grundlagen"><span class="n">1</span>AC oder DC?</a>
+      <a href="#preise" data-to="preise"><span class="n">2</span>Preise</a>
+      <a href="#routine" data-to="routine"><span class="n">3</span>So lade ich</a>
+      <a href="#ionity" data-to="ionity"><span class="n">4</span>Ionity-Rechner</a>
+      <a href="#tipps" data-to="tipps"><span class="n">5</span>Tipps</a>
+      <a href="#startpaket" data-to="startpaket"><span class="n">6</span>Startpaket</a>
+    </nav>
+  </div>
+  <div class="meter" aria-hidden="true"><i id="meter"></i></div>
+</header>
+
+<div class="page">
+
+<!-- START -->
+<section class="view" data-view="start" aria-label="Start">
+  <p class="eyebrow">E-Auto-Crashkurs · Stuttgart · Stand 29. Oktober 2026</p>
+  <h1>Laden für Carina</h1>
+  <p class="lede">Hi Carina! Hier ist alles, was ich übers Laden gelernt habe: wo es günstig ist, welche Apps du brauchst und ein paar Tricks, die im Alltag wirklich helfen. Klick dich einfach durch, dauert etwa zehn Minuten. <span class="sig">– Lukas</span></p>
+
+  <figure class="soc" aria-label="Akkustand: zwischen 20 und 80 Prozent lädt das Auto am Schnelllader am schnellsten">
+    <div class="battery">
+      <div class="cells">
+        <div class="zone-low"><span>Reserve</span></div>
+        <div class="zone-sweet">Sweet Spot fürs Schnellladen</div>
+        <div class="zone-high"><span>zäh</span></div>
+      </div>
+      <div class="nub"></div>
+    </div>
+    <div class="soc-scale" aria-hidden="true">
+      <span style="left:0">0 %</span>
+      <span style="left:20%">20 %</span>
+      <span style="left:80%">80 %</span>
+      <span style="left:100%">100 %</span>
+    </div>
+    <figcaption>Am Schnelllader lädt der Akku zwischen etwa 20 und 80 % am schnellsten. Danach wird es deutlich langsamer. Lieber bei 80 % abstecken und weiterfahren.</figcaption>
+  </figure>
+
+  <ul class="rules">
+    <li><b>Alltag</b><span>Beim Einkaufen laden: Lidl, Kaufland, Aldi Süd</span></li>
+    <li><b>Langstrecke</b><span>Ionity mit Monatsabo, danach kündigen</span></li>
+    <li><b>Immer</b><span>Vor dem Start den Preis in App oder Säule checken</span></li>
+  </ul>
+
+  <h2 style="font-size:1.4rem">Die Kapitel</h2>
+  <ol class="toc">
+    <li><a href="#grundlagen"><span class="n">1</span><span class="t"><b>AC oder DC?</b><span>Langsam oder schnell laden und wann was passt</span></span><span class="arrow">→</span></a></li>
+    <li><a href="#preise"><span class="n">2</span><span class="t"><b>Wo es was kostet</b><span>Lidl, Kaufland, Aldi Süd, EnBW, Ionity, Stadtwerke</span></span><span class="arrow">→</span></a></li>
+    <li><a href="#routine"><span class="n">3</span><span class="t"><b>So lade ich</b><span>Meine Routine für Einkauf, Alltag und Urlaub</span></span><span class="arrow">→</span></a></li>
+    <li><a href="#ionity"><span class="n">4</span><span class="t"><b>Lohnt sich das Ionity-Abo?</b><span>Rechner für die Langstrecke</span></span><span class="arrow">→</span></a></li>
+    <li><a href="#tipps"><span class="n">5</span><span class="t"><b>Tipps &amp; Tricks</b><span>Schneller laden, Gebühren vermeiden</span></span><span class="arrow">→</span></a></li>
+    <li><a href="#startpaket"><span class="n">6</span><span class="t"><b>Dein Startpaket</b><span>Checkliste zum Abhaken</span></span><span class="arrow">→</span></a></li>
+  </ol>
+  <a class="start-btn" href="#grundlagen">Los geht's →</a>
+</section>
+
+<!-- 1 GRUNDLAGEN -->
+<section class="view" data-view="grundlagen" aria-label="AC oder DC?" hidden>
+  <div class="view-head">
+    <p class="eyebrow">Kapitel 1</p>
+    <h2>AC oder DC?</h2>
+    <p>An jeder Säule steht eins von beiden. Der Unterschied entscheidet, wie lange du stehst und was du zahlst.</p>
+  </div>
+  <div class="versus">
+    <div class="mode ac">
+      <span class="badge">AC · WECHSELSTROM</span>
+      <h3>Langsam laden</h3>
+      <ul>
+        <li>Säulen mit 11 bis 22 kW, die meisten Autos laden hier mit max. 11 kW</li>
+        <li>Das sind grob 50 bis 60 km Reichweite pro Stunde</li>
+        <li>Du brauchst fast immer dein eigenes Typ-2-Kabel</li>
+        <li>Ideal, wenn das Auto sowieso länger steht</li>
+      </ul>
+    </div>
+    <div class="mode dc">
+      <span class="badge">DC · GLEICHSTROM</span>
+      <h3>Schnell laden</h3>
+      <ul>
+        <li>Säulen mit 50 bis 400 kW, das Kabel hängt fest an der Säule</li>
+        <li>Von 20 auf 80 % je nach Auto in rund 20 bis 40 Minuten</li>
+        <li>Pro kWh etwas teurer als AC</li>
+        <li>Ideal beim Einkaufen oder als Pause auf der Autobahn</li>
+      </ul>
+    </div>
+  </div>
+  <p class="callout"><b>Faustregel:</b> Stehst du unter einer Stunde, nimm DC. Stehst du länger, reicht AC und ist günstiger.</p>
+  <nav class="pager" aria-label="Kapitelnavigation"></nav>
+</section>
+
+<!-- 2 PREISE -->
+<section class="view" data-view="preise" aria-label="Wo es was kostet" hidden>
+  <div class="view-head">
+    <p class="eyebrow">Kapitel 2</p>
+    <h2>Wo es was kostet</h2>
+    <p>Alle Preise pro Kilowattstunde (kWh), Stand Oktober 2026. Sie ändern sich ab und zu, deshalb immer kurz in der App gegenchecken.</p>
+  </div>
+
+  <div class="providers">
+    <article class="prov">
+      <div class="prov-head"><h3>Lidl &amp; Kaufland</h3><span class="tag">Mein Alltags-Favorit</span></div>
+      <div class="prices">
+        <div class="price ac"><span class="kind">AC</span><span class="val">29<small>ct</small></span></div>
+        <div class="price dc"><span class="kind">DC</span><span class="val">44<small>ct</small></span><span class="sub">47 ct ab 150 kW</span></div>
+      </div>
+      <dl class="facts">
+        <dt>Bezahlen</dt><dd>Lidl Plus App bzw. Kaufland App</dd>
+        <dt>Gut zu wissen</dt><dd>Laden geht meist nur während der Öffnungszeiten. Es gibt immer wieder Rabattaktionen, z. B. DC für 27 ct bei Lidl im Juni 2026.</dd>
+      </dl>
+    </article>
+
+    <article class="prov">
+      <div class="prov-head"><h3>Aldi Süd</h3><span class="tag">Ohne App</span></div>
+      <div class="prices">
+        <div class="price ac"><span class="kind">AC</span><span class="val">29<small>ct</small></span></div>
+        <div class="price dc"><span class="kind">DC</span><span class="val">44<small>ct</small></span><span class="sub">47 ct ab 150 kW</span></div>
+      </div>
+      <dl class="facts">
+        <dt>Bezahlen</dt><dd>Direkt an der Säule mit Giro- oder Kreditkarte oder per Handy (NFC)</dd>
+        <dt>Gut zu wissen</dt><dd>Gleich günstig wie Lidl und Kaufland. Ladezeiten können an die Öffnungszeiten der Filiale gebunden sein.</dd>
+      </dl>
+    </article>
+
+    <article class="prov">
+      <div class="prov-head"><h3>EnBW mobility+</h3><span class="tag">Am bequemsten</span></div>
+      <div class="prices">
+        <div class="price mix"><span class="kind">Tarif S</span><span class="val">56<small>ct</small></span><span class="sub">keine Grundgebühr</span></div>
+        <div class="price mix"><span class="kind">Tarif M</span><span class="val">46<small>ct</small></span><span class="sub">+ 5,99 € / Monat</span></div>
+        <div class="price mix"><span class="kind">Tarif L</span><span class="val">39<small>ct</small></span><span class="sub">+ 11,99 € / Monat</span></div>
+      </div>
+      <dl class="facts">
+        <dt>Bezahlen</dt><dd>EnBW mobility+ App. Mit <b>AutoCharge</b> verknüpfst du dein Auto einmal, danach einstecken und es lädt sofort.</dd>
+        <dt>Gut zu wissen</dt><dd>Preise gelten für AC und DC an EnBW-Säulen. An Säulen anderer Betreiber kostet es 56 bis 89 ct. Ab 4 Stunden Standzeit fällt eine Blockiergebühr an. Mit EnBW-Hausstrom gibt es 10 % Rabatt.</dd>
+      </dl>
+    </article>
+
+    <article class="prov">
+      <div class="prov-head"><h3>Ionity</h3><span class="tag">Für die Langstrecke</span></div>
+      <div class="prices">
+        <div class="price dc"><span class="kind">Power-Abo</span><span class="val">41<small>ct</small></span><span class="sub">+ 11,99 € / Monat</span></div>
+        <div class="price dc"><span class="kind">Motion-Abo</span><span class="val">51<small>ct</small></span><span class="sub">+ 5,99 € / Monat</span></div>
+        <div class="price mix"><span class="kind">Ohne Abo</span><span class="val">68<small>ct</small></span><span class="sub">per App, ad hoc 72 ct+</span></div>
+      </div>
+      <dl class="facts">
+        <dt>Bezahlen</dt><dd>Ionity App, Abo direkt dort buchen</dd>
+        <dt>Gut zu wissen</dt><dd>Nur Schnelllader, vor allem an Autobahnen und sehr zuverlässig. Die Abos laufen monatlich und sind monatlich kündbar. Seit Juli 2026 kostet das Power-Abo 41 statt 39 ct; an manchen Standorten ist es etwas mehr.</dd>
+      </dl>
+    </article>
+
+    <article class="prov">
+      <div class="prov-head"><h3>Stadtwerke Stuttgart</h3><span class="tag">Direkt bei dir</span></div>
+      <div class="prices">
+        <div class="price ac"><span class="kind">AC</span><span class="val">49<small>ct</small></span><span class="sub">39 ct als SWS-Kundin</span></div>
+        <div class="price dc"><span class="kind">DC</span><span class="val">59<small>ct</small></span><span class="sub">49 ct als SWS-Kundin</span></div>
+      </div>
+      <dl class="facts">
+        <dt>Bezahlen</dt><dd>SWS-Lade-App, Ladekarte oder direkt mit Karte, kostet überall gleich viel</dd>
+        <dt>Gut zu wissen</dt><dd>Rund 1.800 Ladepunkte in Stuttgart, vor allem AC. Den günstigeren Preis bekommst du, wenn du deinen Strom von den Stadtwerken beziehst (Vorteilskundentarif). Blockiergebühr: AC nach 4 Stunden, DC schon nach 60 Minuten.</dd>
+      </dl>
+    </article>
+  </div>
+
+  <div class="chart" role="figure" aria-labelledby="chart-title">
+    <div class="chart-head">
+      <h3 id="chart-title">Was kostet eine Schnellladung mit 40 kWh?</h3>
+      <p>Das ist ungefähr 20 → 80 % bei einem mittelgroßen Akku, also rund 200 km. Gestreift: Tarif mit Monatsgebühr, die kommt noch dazu.</p>
+    </div>
+    <div class="chart-rows">
+      <div class="row"><div class="row-top"><span>EnBW Tarif L</span><span class="num">15,60 € <span class="fee">+ 11,99 €/Mon.</span></span></div><div class="track"><div class="bar abo" style="--w:39%"></div></div></div>
+      <div class="row"><div class="row-top"><span>Ionity Power-Abo</span><span class="num">16,40 € <span class="fee">+ 11,99 €/Mon.</span></span></div><div class="track"><div class="bar abo" style="--w:41%"></div></div></div>
+      <div class="row"><div class="row-top"><span><b>Lidl, Kaufland, Aldi Süd</b></span><span class="num">17,60 €</span></div><div class="track"><div class="bar best" style="--w:44%"></div></div></div>
+      <div class="row"><div class="row-top"><span>EnBW Tarif M</span><span class="num">18,40 € <span class="fee">+ 5,99 €/Mon.</span></span></div><div class="track"><div class="bar abo" style="--w:46%"></div></div></div>
+      <div class="row"><div class="row-top"><span>Stadtwerke Stuttgart als SWS-Kundin</span><span class="num">19,60 €</span></div><div class="track"><div class="bar" style="--w:49%"></div></div></div>
+      <div class="row"><div class="row-top"><span>EnBW Tarif S</span><span class="num">22,40 €</span></div><div class="track"><div class="bar" style="--w:56%"></div></div></div>
+      <div class="row"><div class="row-top"><span>Stadtwerke Stuttgart</span><span class="num">23,60 €</span></div><div class="track"><div class="bar" style="--w:59%"></div></div></div>
+      <div class="row"><div class="row-top"><span>Ionity ohne Abo (App)</span><span class="num">27,20 €</span></div><div class="track"><div class="bar" style="--w:68%"></div></div></div>
+      <div class="row"><div class="row-top"><span>Fremde Säule über EnBW-App</span><span class="num">22,40–35,60 €</span></div><div class="track"><div class="bar range" style="--l:56%;--w:33%"></div></div></div>
+    </div>
+    <div class="axis" aria-hidden="true">
+      <span style="left:0">0 €</span><span style="left:25%">10 €</span><span style="left:50%">20 €</span><span style="left:75%">30 €</span><span style="left:100%">40 €</span>
+    </div>
+    <div class="legend">
+      <span><i style="background:var(--dc)"></i>ohne Grundgebühr, am günstigsten</span>
+      <span><i style="background:var(--ac)"></i>nur günstig mit Monatsabo</span>
+      <span><i style="background:var(--muted)"></i>ohne Grundgebühr</span>
+    </div>
+  </div>
+  <p class="callout"><b>Heißt:</b> Im Alltag schlagen die Discounter alles, weil keine Monatsgebühr dazukommt. Ein Abo lohnt sich erst, wenn du in einem Monat viel bei einem Anbieter lädst.</p>
+  <nav class="pager" aria-label="Kapitelnavigation"></nav>
+</section>
+
+<!-- 3 ROUTINE -->
+<section class="view" data-view="routine" aria-label="So lade ich" hidden>
+  <div class="view-head">
+    <p class="eyebrow">Kapitel 3</p>
+    <h2>So lade ich</h2>
+    <p>Meine Routine, die sich bei mir bewährt hat.</p>
+  </div>
+  <ul class="routine">
+    <li>
+      <span class="when">Beim Einkaufen</span>
+      <p><span class="pill dc">DC</span> bei Lidl oder Kaufland für 44 ct. In 40 Minuten bis einer Stunde Einkauf ist das Auto wieder gut voll. Aldi Süd mache ich genauso gern, da zahlst du einfach mit Karte.</p>
+    </li>
+    <li>
+      <span class="when">Wenn das Auto länger steht</span>
+      <p><span class="pill ac">AC</span> bei Lidl, Kaufland oder Aldi Süd für 29 ct. Günstiger geht es öffentlich kaum. Typ-2-Kabel nicht vergessen.</p>
+    </li>
+    <li>
+      <span class="when">Wenn es bequem sein soll</span>
+      <p>EnBW. Das Auto ist in der App verknüpft, also nur Stecker rein und es lädt direkt. Kostet ohne Abo 56 ct, dafür null Aufwand.</p>
+    </li>
+    <li>
+      <span class="when">Auf Langstrecke</span>
+      <p>Ionity, weil es am zuverlässigsten ist. Wenn ich in einem Monat 600 km oder mehr fahre, buche ich das Power-Abo für einen Monat und kündige es danach wieder.</p>
+    </li>
+    <li>
+      <span class="when">Ladekarte?</span>
+      <p>Brauchst du eigentlich nicht. Ich habe meine genau einmal benutzt. Alles läuft über Apps oder das Auto meldet sich selbst an der Säule an. An vielen neuen Schnellladern geht auch Bank- oder Kreditkarte.</p>
+    </li>
+    <li>
+      <span class="when">In Stuttgart</span>
+      <p>Schau, was in deiner Nähe günstig ist. In der EnBW-App kannst du einen Maximalpreis als Filter setzen, dann siehst du nur Säulen darunter. Und check die Stadtwerke, besonders wenn du deinen Strom von dort beziehst.</p>
+    </li>
+  </ul>
+  <nav class="pager" aria-label="Kapitelnavigation"></nav>
+</section>
+
+<!-- 4 IONITY -->
+<section class="view" data-view="ionity" aria-label="Lohnt sich das Ionity-Abo?" hidden>
+  <div class="view-head">
+    <p class="eyebrow">Kapitel 4</p>
+    <h2>Lohnt sich das Ionity-Abo?</h2>
+    <p>Stell ein, wie viele Kilometer du diesen Monat mit Ionity-Strom fährst. Du startest meist voll geladen, bei 700 km Strecke lädst du also eher 450 bis 500 km nach.</p>
+  </div>
+  <div class="calc">
+    <div class="field">
+      <div class="field-top"><label for="km">Kilometer mit Ionity-Strom</label><output id="km-out" for="km">500 km</output></div>
+      <input type="range" id="km" min="0" max="1500" step="50" value="500">
+    </div>
+    <div class="field">
+      <div class="field-top"><label for="verbrauch">Verbrauch deines Autos</label><output id="verbrauch-out" for="verbrauch">18 kWh/100 km</output></div>
+      <input type="range" id="verbrauch" min="13" max="26" step="1" value="18">
+      <span class="hint">Steht im Bordcomputer. Im Winter und auf der Autobahn eher höher.</span>
+    </div>
+    <div class="results" aria-live="polite">
+      <div class="res" id="res-go"><span class="name">Ohne Abo</span><span class="total num">–</span><span class="detail">68 ct/kWh per App</span></div>
+      <div class="res" id="res-motion"><span class="name">Motion-Abo</span><span class="total num">–</span><span class="detail">51 ct/kWh + 5,99 €</span></div>
+      <div class="res" id="res-power"><span class="name">Power-Abo</span><span class="total num">–</span><span class="detail">41 ct/kWh + 11,99 €</span></div>
+    </div>
+    <p class="verdict" id="verdict">–</p>
+  </div>
+  <nav class="pager" aria-label="Kapitelnavigation"></nav>
+</section>
+
+<!-- 5 TIPPS -->
+<section class="view" data-view="tipps" aria-label="Tipps und Tricks" hidden>
+  <div class="view-head">
+    <p class="eyebrow">Kapitel 5</p>
+    <h2>Tipps &amp; Tricks</h2>
+    <p>Kleine Sachen, die beim Laden Zeit und Geld sparen.</p>
+  </div>
+  <div class="tips">
+    <div class="tip"><h3>Bei 80 % abstecken</h3><p>Am Schnelllader wird es danach richtig langsam. Lieber zweimal kurz laden als einmal bis 100 % warten.</p></div>
+    <div class="tip"><h3>Akku vorwärmen</h3><p>Gerade jetzt im Winter: Die Ladesäule im Auto-Navi als Ziel eingeben. Viele Autos wärmen den Akku dann vor und laden deutlich schneller.</p></div>
+    <div class="tip"><h3>20 bis 80 % im Alltag</h3><p>Das schont den Akku. Auf 100 % nur vor langen Fahrten laden, außer dein Hersteller empfiehlt es anders.</p></div>
+    <div class="tip"><h3>Preis vor dem Start checken</h3><p>Dieselbe Säule kann je nach App unterschiedlich viel kosten. Über eine fremde App wird es oft teurer.</p></div>
+    <div class="tip"><h3>Blockiergebühren kennen</h3><p>EnBW ab 4 Stunden, Stadtwerke Stuttgart bei DC schon nach 60 Minuten. Wenn das Auto voll ist, umparken.</p></div>
+    <div class="tip"><h3>Freie Säule nehmen</h3><p>Manche Säulen teilen ihre Leistung, wenn zwei Autos dran hängen. Ist eine komplett frei, nimm die.</p></div>
+    <div class="tip"><h3>Aktionen mitnehmen</h3><p>Lidl und Kaufland senken ab und zu kurzfristig die Preise, im Sommer 2026 z. B. auf 27 bzw. 22 ct. App-Benachrichtigungen anlassen.</p></div>
+    <div class="tip"><h3>Kabel im Kofferraum</h3><p>Für AC-Säulen brauchst du dein Typ-2-Kabel. An DC-Säulen hängt das Kabel schon dran.</p></div>
+  </div>
+  <nav class="pager" aria-label="Kapitelnavigation"></nav>
+</section>
+
+<!-- 6 STARTPAKET -->
+<section class="view" data-view="startpaket" aria-label="Dein Startpaket" hidden>
+  <div class="view-head">
+    <p class="eyebrow">Kapitel 6</p>
+    <h2>Dein Startpaket</h2>
+    <p>Einmal erledigen, dann bist du startklar. Deine Häkchen bleiben auf deinem Handy gespeichert.</p>
+    <p class="progress" id="progress">0 von 6 erledigt</p>
+  </div>
+  <ul class="checklist">
+    <li><label for="c1"><input type="checkbox" id="c1"><span>Lidl Plus App und Kaufland App installieren und ein Zahlungsmittel fürs Laden hinterlegen</span></label></li>
+    <li><label for="c2"><input type="checkbox" id="c2"><span>EnBW mobility+ App installieren (Tarif S hat keine Grundgebühr) und unter „Ladekarten &amp; AutoCharge“ das Auto verknüpfen</span></label></li>
+    <li><label for="c3"><input type="checkbox" id="c3"><span>Nachschauen, ob das Typ-2-Kabel im Kofferraum liegt</span></label></li>
+    <li><label for="c4"><input type="checkbox" id="c4"><span>Prüfen, von wem dein Hausstrom kommt: Bei den Stadtwerken Stuttgart oder der EnBW gibt es günstigeren Ladestrom</span></label></li>
+    <li><label for="c5"><input type="checkbox" id="c5"><span>Ionity App laden, das Abo aber erst vor einer langen Fahrt buchen und gleich eine Erinnerung zum Kündigen setzen</span></label></li>
+    <li><label for="c6"><input type="checkbox" id="c6"><span>Im Auto-Menü schauen, wie das Vorwärmen des Akkus funktioniert</span></label></li>
+  </ul>
+
+  <div class="sources">
+    <p>Preise ohne Gewähr, Stand 29. Oktober 2026. Maßgeblich ist immer der Preis, den App oder Säule vor dem Start anzeigt.</p>
+    <p>Quellen:</p>
+    <ul>
+      <li><a href="https://www.nextpit.de/news/lidl-und-kaufland-senken-preise-fuer-autofahrer-wer-davon-profitiert" target="_blank" rel="noopener">Lidl &amp; Kaufland Ladepreise (nextpit)</a> · <a href="https://www.teltarif.de/arch/2026/kw23/s103846.html" target="_blank" rel="noopener">Lidl-Aktion Juni 2026 (teltarif)</a> · <a href="https://www.elektroquatsch.de/artikel/kaufland-laden-22-cent-pro-kwh-rabattwoche-2026-bedingungen" target="_blank" rel="noopener">Kaufland-Rabattwoche (ElektroQuatsch)</a></li>
+      <li><a href="https://ecomento.de/2025/10/27/e-ladehubs-aldi-sued-verspricht-e-autofahrern-den-besten-preis/" target="_blank" rel="noopener">Aldi Süd Ladepreise und Bezahlung (ecomento)</a></li>
+      <li><a href="https://www.enbw.com/elektromobilitaet/produkte/ladetarife" target="_blank" rel="noopener">EnBW mobility+ Ladetarife (EnBW)</a> · <a href="https://www.electrive.net/2025/11/05/enbw-senkt-ladepreise-leicht-zum-1-dezember/" target="_blank" rel="noopener">EnBW-Preise seit 1.12.2025 (electrive)</a> · <a href="https://www.enbw.com/presse/enbw-sommer-preisaktion-laden-5-cent-rabatt.html" target="_blank" rel="noopener">EnBW AutoCharge (EnBW Presse)</a></li>
+      <li><a href="https://motor.com.de/blog/ionity-preise-2026" target="_blank" rel="noopener">Ionity-Preise seit Juli 2026 (motor.com.de)</a> · <a href="https://www.electrive.net/2026/06/23/ionity-erhoeht-ladepreise-im-schnitt-um-vier-prozent/" target="_blank" rel="noopener">Ionity-Preiserhöhung (electrive)</a></li>
+      <li><a href="https://www.stadtwerke-stuttgart.de/privatkunden/e-mobilitaet/oeffentliches-laden/oeffentliche-ladestationen/" target="_blank" rel="noopener">Öffentliche Ladestationen (Stadtwerke Stuttgart)</a> · <a href="https://www.energie-und-management.de/nachrichten/detail/guenstiger-laden-in-stuttgart-345606" target="_blank" rel="noopener">SWS-Preissenkung 2026 (E&amp;M)</a></li>
+    </ul>
+  </div>
+  <nav class="pager" aria-label="Kapitelnavigation"></nav>
+</section>
+
+</div>
+
+<script>
+(function () {
+  /* ---------- Kapitel-Navigation ---------- */
+  var order = ['start', 'grundlagen', 'preise', 'routine', 'ionity', 'tipps', 'startpaket'];
+  var titles = {
+    start: 'Start', grundlagen: 'AC oder DC?', preise: 'Preise', routine: 'So lade ich',
+    ionity: 'Ionity-Rechner', tipps: 'Tipps & Tricks', startpaket: 'Startpaket'
+  };
+  var views = {};
+  Array.prototype.forEach.call(document.querySelectorAll('.view'), function (v) { views[v.getAttribute('data-view')] = v; });
+  var chapterLinks = Array.prototype.slice.call(document.querySelectorAll('#chapters a'));
+  var stepCount = document.getElementById('step-count');
+  var meter = document.getElementById('meter');
+
+  function link(cls, to, label, title) {
+    var a = document.createElement('a');
+    a.className = cls; a.href = '#' + to;
+    a.innerHTML = '<small></small><b></b>';
+    a.querySelector('small').textContent = label;
+    a.querySelector('b').textContent = title;
+    return a;
+  }
+
+  // Build Zurück/Weiter for each chapter view
+  order.forEach(function (name, i) {
+    var pager = views[name] && views[name].querySelector('.pager');
+    if (!pager) return;
+    if (i > 0) pager.appendChild(link('prev', order[i - 1], '← Zurück', titles[order[i - 1]]));
+    if (i < order.length - 1) pager.appendChild(link('next', order[i + 1], 'Weiter →', titles[order[i + 1]]));
+    else pager.appendChild(link('next', 'start', 'Geschafft!', 'Zurück zum Start'));
+  });
+
+  function current() {
+    var h = (location.hash || '').replace('#', '');
+    return order.indexOf(h) >= 0 ? h : 'start';
+  }
+  function render(scroll) {
+    var name = current();
+    var idx = order.indexOf(name);
+    order.forEach(function (n) { if (views[n]) views[n].hidden = n !== name; });
+    chapterLinks.forEach(function (a) {
+      var to = a.getAttribute('data-to');
+      var i = order.indexOf(to);
+      if (to === name) {
+        a.setAttribute('aria-current', 'page');
+        if (a.scrollIntoView) { try { a.scrollIntoView({ block: 'nearest', inline: 'center' }); } catch (e) {} }
+      } else { a.removeAttribute('aria-current'); }
+      a.classList.toggle('done', i > 0 && i < idx);
+    });
+    stepCount.textContent = idx === 0 ? 'Start' : 'Kapitel ' + idx + ' von ' + (order.length - 1);
+    meter.style.setProperty('--p', Math.round(idx / (order.length - 1) * 100) + '%');
+    if (scroll) window.scrollTo(0, 0);
+  }
+  window.addEventListener('hashchange', function () { render(true); });
+  render(false);
+
+  // Pfeiltasten zum Blättern (nicht in Schiebereglern)
+  document.addEventListener('keydown', function (e) {
+    if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+    var i = order.indexOf(current());
+    if (e.key === 'ArrowRight' && i < order.length - 1) location.hash = order[i + 1];
+    if (e.key === 'ArrowLeft' && i > 0) location.hash = order[i - 1];
+  });
+
+  /* ---------- Ionity-Rechner ---------- */
+  var km = document.getElementById('km');
+  var vb = document.getElementById('verbrauch');
+  var kmOut = document.getElementById('km-out');
+  var vbOut = document.getElementById('verbrauch-out');
+  var verdict = document.getElementById('verdict');
+  var eur = function (n) { return n.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' }); };
+  var tariffs = {
+    go: { el: document.getElementById('res-go'), ct: 0.68, fee: 0 },
+    motion: { el: document.getElementById('res-motion'), ct: 0.51, fee: 5.99 },
+    power: { el: document.getElementById('res-power'), ct: 0.41, fee: 11.99 }
+  };
+  function calc() {
+    var k = Number(km.value), v = Number(vb.value);
+    var kwh = k * v / 100;
+    kmOut.textContent = k.toLocaleString('de-DE') + ' km';
+    vbOut.textContent = v + ' kWh/100 km';
+    var best = null;
+    Object.keys(tariffs).forEach(function (key) {
+      var t = tariffs[key];
+      t.total = kwh * t.ct + t.fee;
+      t.el.querySelector('.total').textContent = eur(t.total);
+      if (!best || t.total < tariffs[best].total) best = key;
+    });
+    Object.keys(tariffs).forEach(function (key) { tariffs[key].el.classList.toggle('win', key === best); });
+    var kwhTxt = Math.round(kwh).toLocaleString('de-DE') + ' kWh';
+    if (k === 0) {
+      verdict.textContent = 'Ohne Ionity-Ladung brauchst du natürlich kein Abo.';
+    } else if (best === 'go') {
+      verdict.textContent = 'Bei ' + kwhTxt + ' lohnt sich kein Abo. Einfach per App laden.';
+    } else if (best === 'motion') {
+      verdict.textContent = 'Bei ' + kwhTxt + ' reicht das kleine Motion-Abo. Spart dir ' + eur(tariffs.go.total - tariffs.motion.total) + ' gegenüber ohne Abo.';
+    } else {
+      verdict.textContent = 'Bei ' + kwhTxt + ' das Power-Abo buchen und danach kündigen. Spart dir ' + eur(tariffs.go.total - tariffs.power.total) + ' gegenüber ohne Abo.';
+    }
+  }
+  km.addEventListener('input', calc);
+  vb.addEventListener('input', calc);
+  calc();
+
+  /* ---------- Startpaket ---------- */
+  var KEY = 'carina-startpaket';
+  var boxes = Array.prototype.slice.call(document.querySelectorAll('.checklist input'));
+  var progress = document.getElementById('progress');
+  var saved = {};
+  try { saved = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { saved = {}; }
+  function update() {
+    var done = boxes.filter(function (b) { return b.checked; }).length;
+    progress.textContent = done === boxes.length ? 'Alles erledigt – gute Fahrt!' : done + ' von ' + boxes.length + ' erledigt';
+  }
+  boxes.forEach(function (b) {
+    if (saved[b.id]) b.checked = true;
+    b.addEventListener('change', function () {
+      saved[b.id] = b.checked;
+      try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch (e) {}
+      update();
+    });
+  });
+  update();
+})();
+</script>
+</body>
+</html>
